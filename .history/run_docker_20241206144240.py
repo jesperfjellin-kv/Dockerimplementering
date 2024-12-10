@@ -16,7 +16,6 @@ def get_available_containers(container_dir):
 
 def load_and_run_docker_image(image_path, root_dir, root):
     docker_path = r"C:\Program Files\Docker\Docker\resources\bin\docker.exe"
-    loaded_image_name = None
     
     # Sjekk om Docker eksisterer
     if not os.path.isfile(docker_path):
@@ -40,12 +39,12 @@ def load_and_run_docker_image(image_path, root_dir, root):
             check=True, capture_output=True, text=True
         )
         
-        loaded_image_name = load_result.stdout.split("Loaded image: ")[-1].strip()
-        print(f"\nDEBUG - Loaded image name: {loaded_image_name}")
+        image_name = load_result.stdout.split("Loaded image: ")[-1].strip()
+        print(f"\nDEBUG - Loaded image name: {image_name}")
 
         # Inspiser image for å finne labels
         inspect_result = subprocess.run(
-            [docker_path, "image", "inspect", loaded_image_name, "--format", "{{json .Config.Labels}}"],
+            [docker_path, "image", "inspect", image_name, "--format", "{{json .Config.Labels}}"],
             check=True, capture_output=True, text=True
         )
 
@@ -55,7 +54,7 @@ def load_and_run_docker_image(image_path, root_dir, root):
 
         # Inspiser image for å finne miljøvariabler
         inspect_env_result = subprocess.run(
-            [docker_path, "image", "inspect", loaded_image_name, "--format", "{{json .Config.Env}}"],
+            [docker_path, "image", "inspect", image_name, "--format", "{{json .Config.Env}}"],
             check=True, capture_output=True, text=True
         )
         env_vars = json.loads(inspect_env_result.stdout) if inspect_env_result.stdout.strip() else []
@@ -113,7 +112,7 @@ def load_and_run_docker_image(image_path, root_dir, root):
             
             # Legg til image navn og kommando
             command.extend([
-                loaded_image_name,
+                image_name,
                 "python",
                 "/app/stikkproveomrade.py"  
             ])
@@ -124,7 +123,7 @@ def load_and_run_docker_image(image_path, root_dir, root):
             print(f"\nDEBUG - Final command with all arguments: {' '.join(command)}")
 
         # Kjør container
-        messagebox.showinfo("Fremdrift", f"Kjører container {loaded_image_name}...", parent=root)
+        messagebox.showinfo("Fremdrift", f"Kjører container {image_name}...", parent=root)
         print(f"\nDEBUG - Executing command: {' '.join(command)}")
         result = subprocess.run(command, check=True, capture_output=True, text=True)
         
@@ -141,20 +140,6 @@ def load_and_run_docker_image(image_path, root_dir, root):
         print(f"\nDEBUG - Unexpected error: {str(e)}")
         messagebox.showerror("Feil", f"En uventet feil oppstod: {str(e)}", parent=root)
     finally:
-        # Cleanup the loaded image
-        if loaded_image_name:
-            try:
-                print(f"\nDEBUG - Cleaning up Docker image: {loaded_image_name}")
-                subprocess.run(
-                    [docker_path, "rmi", loaded_image_name],
-                    check=True, capture_output=True, text=True
-                )
-                print("DEBUG - Cleanup successful")
-            except subprocess.CalledProcessError as e:
-                print(f"DEBUG - Cleanup failed: {e.stderr}")
-            except Exception as e:
-                print(f"DEBUG - Unexpected cleanup error: {str(e)}")
-        
         root.destroy()
 
 class ContainerSelectorGUI:
