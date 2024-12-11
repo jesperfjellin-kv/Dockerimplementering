@@ -1,0 +1,25 @@
+{
+    "input_patterns": {
+        "folder_selection": [
+            "Choose folder containing files",
+            "Sti_til_SOSI-filer",
+            "Select folder",
+            "Choose directory"
+        ],
+        "file_selection": [
+            "Choose file",
+            "Select file",
+            "Input file"
+        ],
+        "yes_no": [
+            "Should process be verbose",
+            "Enable logging",
+            "Use cache"
+        ],
+        "numeric": [
+            "Number of iterations",
+            "Batch size",
+            "Buffer size"
+        ]
+    }
+}
