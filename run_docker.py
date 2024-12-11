@@ -3,8 +3,85 @@
 import os
 import subprocess
 import tkinter as tk
-from tkinter import messagebox, ttk, simpledialog
+from tkinter import messagebox, ttk, simpledialog, filedialog
 import json
+from pathlib import Path
+
+class ArgumentHandler:
+    def __init__(self, root):
+        self.root = root
+        self.config = self._load_arg_patterns()
+
+    def _load_arg_patterns(self):
+        try:
+            config_path = Path(__file__).parent / "config" / "arg_patterns.json"
+            with open(config_path, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Warning: Could not load argument patterns config: {e}")
+            return {"input_patterns": {}}
+
+    def _get_input_type(self, arg_name):
+        patterns = self.config["input_patterns"]
+        for input_type, pattern_list in patterns.items():
+            if any(pattern.lower() in arg_name.lower() for pattern in pattern_list):
+                return input_type
+        return "text"  # Default to simple text input
+
+    def get_argument_value(self, arg_name):
+        input_type = self._get_input_type(arg_name)
+        
+        if input_type == "folder_selection":
+            folder_path = filedialog.askdirectory(
+                title=f"Select folder for: {arg_name}",
+                parent=self.root
+            )
+            if folder_path:
+                # Convert to Path object to handle UTF-8 properly
+                return str(Path(folder_path))
+            return None
+
+        elif input_type == "file_selection":
+            file_path = filedialog.askopenfilename(
+                title=f"Select file for: {arg_name}",
+                parent=self.root
+            )
+            if file_path:
+                # Convert to Path object to handle UTF-8 properly
+                return str(Path(file_path))
+            return None
+
+        elif input_type == "yes_no":
+            return messagebox.askyesno(
+                "Input Required",
+                f"{arg_name}?",
+                parent=self.root
+            )
+
+        elif input_type == "numeric":
+            while True:
+                value = simpledialog.askstring(
+                    "Input Required",
+                    f"Please enter a number for {arg_name}:",
+                    parent=self.root
+                )
+                if value is None:  # User clicked Cancel
+                    return None
+                try:
+                    return int(value)
+                except ValueError:
+                    messagebox.showerror(
+                        "Invalid Input",
+                        "Please enter a valid number",
+                        parent=self.root
+                    )
+
+        else:  # Default text input
+            return simpledialog.askstring(
+                "Input Required",
+                f"Please enter value for {arg_name}:",
+                parent=self.root
+            )
 
 def get_available_containers(container_dir):
     """Scanner container-mappen etter .tar filer"""
@@ -32,7 +109,7 @@ def load_and_run_docker_image(image_path, root_dir, root):
         root.destroy()
         return
     
-    try:
+    try: 
         # Last Docker image fra fil
         messagebox.showinfo("Fremdrift", f"Laster Docker image fra {image_path}...", parent=root)
         load_result = subprocess.run(
@@ -74,37 +151,35 @@ def load_and_run_docker_image(image_path, root_dir, root):
         mount_path = None
         container_path = sos_dir  # Bruk ENV-variabelen istedet for hardkodet sti
 
+        arg_handler = ArgumentHandler(root)
+        
         # Hvis det er nødvendige argumenter, spør brukeren om dem og legg dem til kommandoen
         if required_args:
             arg_list = [arg.strip() for arg in required_args.split(',')]
             user_inputs = []
             for arg in arg_list:
-                user_input = simpledialog.askstring("Input nødvendig", f"Vennligst oppgi verdi for {arg}:", parent=root)
+                user_input = arg_handler.get_argument_value(arg)
+                
                 if user_input is None:
-                    messagebox.showwarning("Avbrutt", f"Du avbrøt input for {arg}. Container vil ikke kjøre.")
+                    messagebox.showwarning(
+                        "Aborted",
+                        f"You cancelled input for {arg}. Container will not run.",
+                        parent=root
+                    )
                     root.destroy()
                     return
-                
-                print(f"\nDEBUG - Processing argument '{arg}':")
-                print(f"Original input: {user_input}")
-                
-                # Hvis dette er sti-argumentet
-                if arg == "Sti_til_SOSI-filer":
-                    if '\\' in user_input:
-                        # Konverter til / (unix-snash)
+
+                # Handle path conversion for folder/file inputs
+                if isinstance(user_input, str) and os.path.exists(user_input):
+                    # Convert to Path object and back to string to handle UTF-8 properly
+                    user_input = str(Path(user_input)).replace('\\', '/')
+                    
+                    if arg == "Sti_til_SOSI-filer":  # Special handling for SOSI files
+                        mount_path = str(Path(user_input).parent)
+                        user_input = str(Path(container_path) / Path(user_input).name)
                         user_input = user_input.replace('\\', '/')
-                        print(f"Etter backslash-konvertering: {user_input}")
-                        
-                        # Hent stien til montering (parent av SOSI-filer)
-                        mount_path = os.path.dirname(user_input)
-                        # Juster brukerens input til å bruke containerens sti
-                        user_input = os.path.join(container_path, os.path.basename(user_input))
-                        user_input = user_input.replace('\\', '/')
-                        print(f"Mount path: {mount_path}")
-                        print(f"Container path: {user_input}")
-                
-                user_inputs.append(user_input)
-                print(f"Final argument value: {user_input}")
+
+                user_inputs.append(str(user_input))  # Convert all inputs to strings for command line
             
             # Legg til volummontering hvis vi fant en sti
             if mount_path:
@@ -209,8 +284,14 @@ class ContainerSelectorGUI:
             docker_window = tk.Toplevel(self.root)
             docker_window.withdraw()  # Skjul vinduet
             
-            # Kjør docker-kommandoene
-            load_and_run_docker_image(image_path, root_dir, docker_window)
+            self.root.withdraw()
+            
+            try:
+                load_and_run_docker_image(image_path, root_dir, docker_window)
+            finally:
+                # Destroy the main window after Docker operations are complete
+                if self.root:
+                    self.root.destroy()
     
     def run(self):
         self.root.mainloop()
