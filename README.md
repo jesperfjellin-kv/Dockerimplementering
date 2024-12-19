@@ -1,19 +1,7 @@
 # Dockerimplementering
 
-Forslag til hvordan Docker kan implementeres i FKB-miljøet. run_docker.py er en standardisert Docker launcher som starter Docker containere fra lokale .TAR-filer. Skriptet er avhengig av at Dockerfilen i TAR-filen har to 'ekstra' variabler: 'Labels' som beskriver sysargs som skal sendes inn i containeren, og 'Env' som beskriver mappestrukturen inni containeren ved hjelp av CONTAINER_DIR. Eks:
+Forslag til hvordan Docker kan implementeres i FKB-miljøet. run_docker.py er en standardisert Docker launcher som starter Docker containere fra lokale .TAR-filer. For at skriptet skal kunne generere en GUI for brukeren, krever det at Dockerfilen har to 'ekstra' variabler: 'LABEL' som beskriver sysargs som skal sendes inn i containeren, og 'ENV' som beskriver mappestrukturen inni containeren ved hjelp av CONTAINER_DIR. Eks:
 
-"Labels": {
-                "required_args": "FKB_Area,Sti_til_SOSI-filer"
-            }
-
-
-"Env": [
-                  "CONTAINER_DIR=/app/sos_files"
-            ]
-
-Hvis python-skriptet i containeren ikke trenger sysargs, sjekker ikke run_docker.py 'Labels'. 
-
-Eksempel på god Dockerfile mal:
 
 ```Dockerfile
 
@@ -41,5 +29,8 @@ RUN pip install -r requirements.txt
 COPY . .
 
 # Starter Python-skriptet i containeren og tar imot sysargs
-CMD ["python", "stikkproveomrade.py"]```
+CMD ["python", "stikkproveomrade.py"]
+```
+
+Hvis python-skriptet i containeren ikke trenger sysargs, sjekker ikke run_docker.py 'LABEL'.
 
